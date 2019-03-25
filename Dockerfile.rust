@@ -1,0 +1,23 @@
+FROM freebsd-cross
+
+ENV PATH /home/rust/.cargo/bin:/freebsd/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+RUN apt-get -y update && \
+    apt-get -y install curl build-essential
+# A host compiler is needed to link Rust uild scripts even when cross compiling
+
+RUN useradd -ms /bin/bash rust
+
+USER rust
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+    rustup target add x86_64-unknown-freebsd
+
+RUN mkdir -p /home/rust/code/target /home/rust/.cargo/registry /home/rust/output
+
+WORKDIR /home/rust/code
+
+VOLUME /home/rust/code /home/rust/code/target /home/rust/output /home/rust/.cargo/registry
+
+ENTRYPOINT ["cargo"]
+CMD ["--help"]
