@@ -1,4 +1,4 @@
-FROM debian:9-slim AS build
+FROM debian:10-slim AS build
 
 # TODO: Add ARG for FreeBSD version/image?
 # TODO: Add ARG for parallism?
@@ -10,7 +10,7 @@ WORKDIR /freebsd
 RUN apt-get -y update && \
     apt-get -y install build-essential m4 bison flex libtool automake autoconf autogen pkg-config curl
 
-RUN curl -OL 'http://ftp.swin.edu.au/freebsd/releases/amd64/12.0-RELEASE/base.txz'
+RUN curl -OL 'http://ftp.swin.edu.au/freebsd/releases/amd64/12.1-RELEASE/base.txz'
 RUN curl -OL 'http://ftp.swin.edu.au/gnu/binutils/binutils-2.32.tar.xz'
 RUN curl -OL 'http://ftp.swin.edu.au/gnu/gmp/gmp-6.1.2.tar.xz'
 RUN curl -OL 'http://ftp.swin.edu.au/gnu/mpfr/mpfr-4.0.2.tar.xz'
@@ -78,7 +78,7 @@ RUN mkdir -p /src/gcc-6.4.0/build && \
     make install
 
 # Now copy the toolchain to a fresh image
-FROM debian:9-slim
+FROM debian:10-slim
 
 COPY --from=build /freebsd /freebsd
 
