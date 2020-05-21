@@ -42,28 +42,37 @@ Then, use the following script:
 ```shell
 #!/bin/sh
 
+# This should be executed from the project root.
+
 set -e
 
-mkdir -p target/x86_64-unknown-freebsd
+mkdir -p target
 
-# NOTE: Assumes the following volumes have been created:
-# - lobsters-freebsd-target
-# - lobsters-freebsd-cargo-registry
-# And that there is a .cargo/config present that sets the linker appropriately
-# for the x86_64-unknown-freebsd target.
+project=${PWD##*/} # Use the directory's name as the name of the project.
+container="$project-freebsd-build"
 
-# Build
-sudo docker run --rm -it \
-  -v "$(pwd)":/home/rust/code:ro \
-  -v lobsters-freebsd-target:/home/rust/code/target \
-  -v lobsters-freebsd-cargo-registry:/home/rust/.cargo/registry \
-  freebsd-cross-rust build --release --target x86_64-unknown-freebsd
+# Use the container itself as the cache layer for the registry.
+# This implies we won't create a new container for every build,
+# but just start the same container.
+if ! docker ps -a --format '{{.Names}}' | grep -Eq "^${container}\$"; then
+	docker create \
+	       --name "$container" \
+	       -i -a STDIN -a STDOUT -a STDERR \
+	       -v "$(pwd)":/rust/project:ro \
+	       freebsd-cross-rust
+fi
 
-# Copy binary out of volume into target/x86_64-unknown-freebsd
-sudo docker run --rm -it \
-  -v "$(pwd)"/target/x86_64-unknown-freebsd:/home/rust/output \
-  -v lobsters-freebsd-target:/home/rust/code/target \
-  --entrypoint cp \
-  freebsd-cross-rust \
-  /home/rust/code/target/x86_64-unknown-freebsd/release/lobsters /home/rust/output
+echo "cargo build --release --target x86_64-unknown-freebsd --target-dir /rust/target" \
+	| docker start -i "$container"
+
+docker cp "$container":/rust/target/x86_64-unknown-freebsd/ target/x86_64-unknown-freebsd/
 ```
+
+The script sets up a container for building your project. The build artefacts are cached
+within the container, and the build is executed by just piping the build command into the
+container. As with the build command, other commands can be piped into the container:
+- To install possible dependencies, like `libfl-dev` and `libsqlite3-dev`.
+- To install other toolchains, like `nightly`.
+
+Please note that when installing a new toolchain, the `x86_64-unknown-freebsd` target must
+be added for such toolchain.

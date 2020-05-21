@@ -1,25 +1,19 @@
-FROM freebsd-cross
+from freebsd-cross
 
-ENV PATH /home/rust/.cargo/bin:/freebsd/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# A host compiler is needed to link Rust build scripts even when cross compiling:
+run apt update -y
+run apt install -y curl build-essential
 
-RUN apt-get -y update && \
-    apt-get -y install curl build-essential
-# A host compiler is needed to link Rust build scripts even when cross compiling
+run curl https://sh.rustup.rs -sSf \
+      | sh -s -- -y --target x86_64-unknown-freebsd
 
-RUN useradd -ms /bin/bash rust
+run mkdir -p /rust/project /rust/target
 
-USER rust
+workdir /rust/project
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
-    rustup target add x86_64-unknown-freebsd
+volume /rust/project
 
-RUN mkdir -p /home/rust/code/target /home/rust/.cargo/registry /home/rust/output
+env PATH /root/.cargo/bin:/freebsd/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-WORKDIR /home/rust/code
-
-VOLUME /home/rust/code /home/rust/code/target /home/rust/output /home/rust/.cargo/registry
-
-env OPENSSL_DIR /freebsd/x86_64-pc-freebsd12/ # required for the openssl-sys crate
-
-ENTRYPOINT ["cargo"]
-CMD ["--help"]
+# Required for the openssl-sys crate:
+env OPENSSL_DIR /freebsd/x86_64-pc-freebsd12/
