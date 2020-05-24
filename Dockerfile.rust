@@ -4,7 +4,7 @@ ENV PATH /home/rust/.cargo/bin:/freebsd/bin:/usr/local/sbin:/usr/local/bin:/usr/
 
 RUN apt-get -y update && \
     apt-get -y install curl build-essential
-# A host compiler is needed to link Rust uild scripts even when cross compiling
+# A host compiler is needed to link Rust build scripts even when cross compiling
 
 RUN useradd -ms /bin/bash rust
 
@@ -18,6 +18,8 @@ RUN mkdir -p /home/rust/code/target /home/rust/.cargo/registry /home/rust/output
 WORKDIR /home/rust/code
 
 VOLUME /home/rust/code /home/rust/code/target /home/rust/output /home/rust/.cargo/registry
+
+env OPENSSL_DIR /freebsd/x86_64-pc-freebsd12/ # required for the openssl-sys crate
 
 ENTRYPOINT ["cargo"]
 CMD ["--help"]
