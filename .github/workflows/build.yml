@@ -42,6 +42,7 @@ jobs:
       - name: Prepare Dir
         run: |
              mkdir ${{ matrix.target }}
+             ls -al
       - name: Fetch ${{ matrix.target }} deps
         run:  |
               curl -OL 'http://ftp.swin.edu.au/freebsd/releases/amd64/${{ matrix.target }}-RELEASE/base.txz'
@@ -59,7 +60,7 @@ jobs:
              mv src/base/lib/* ${{ matrix.target }}
              sed -i'' -e 's!/usr/lib/!/${{ matrix.target }}/lib/!g' -e 's!/lib/libc.so.7!/${{ matrix.target }}/lib/libc.so.7!g' ${{ matrix.target }}/lib/libc.so && \
              sed -i'' 's!/usr/lib/!/${{ matrix.target }}/lib/!g' ${{ matrix.target }}/lib/libc++.so
-             fix-links src
+             cp fix-links src
              src/fix-links /${{ matrix.target }}/lib
              tar -C src -Jxf binutils-2.32.tar.xz
              tar -C src -Jxf gcc-6.4.0.tar.xz
