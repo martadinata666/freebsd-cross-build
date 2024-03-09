@@ -1,0 +1,77 @@
+name: Build Cross
+
+on:
+  push:
+    branches:
+      - 'master'
+  release:
+    types:
+      - 'published'
+  pull_request:
+    branches:
+      - 'master'
+  workflow_dispatch:
+    inputs:
+      msg:
+        description: "Set message"
+        default: "Manual trigger"
+
+jobs:
+  Build:
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    strategy:
+       fail-fast: false
+       matrix:
+         target: [x86_64-unknown-freebsd]
+         #target: [armv7l-linux-musleabihf]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+      - name: Build
+        run: |
+             mkdir ${{ matrix.target }}
+             docker buildx build . -f Dockerfile.freebsd13 -v ${PWD}/freebsd:/freebsd
+      - name: Upload ${{ matrix.target }}-cross artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}-cross.tar.gz
+          path: musl-cross/${{ matrix.target }}-cross.tar.gz
+
+  Create-release-artifacts:
+     needs: [Build]
+     name: Create release artifacts
+     strategy:
+       fail-fast: false
+       matrix:
+         target: [x86_64-unknown-freebsd]
+         #target: [armv7l-linux-musleabihf]
+     if: github.event_name == 'release'
+     runs-on: ubuntu-latest
+     permissions:
+       contents: write
+     steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.target }}-cross.tar.gz
+
+      - name: Upload compressed release
+        uses: ncipollo/release-action@v1
+        id: create_release
+        with:
+          allowUpdates: true
+          artifacts: ${{ matrix.target }}-cross.tar.gz
+        env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
