@@ -30,19 +30,66 @@ jobs:
     strategy:
        fail-fast: false
        matrix:
-         target: [x86_64-unknown-freebsd]
+         target: [13.2]
          #target: [armv7l-linux-musleabihf]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Setup buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-      - name: Build
+      - name: Install Build Deps
         run: |
-             mkdir ${{ matrix.target }}
-             docker buildx build . -f Dockerfile.freebsd13 -v ${PWD}/freebsd:/freebsd
+             sudo apt-get -y update
+             sudo apt-get -y install build-essential m4 bison flex libtool automake autoconf autogen pkg-config curl
+      - name: Prepare Dir
+        run: |
+             mkdir /${{ matrix.target }}
+      - name: Fetch ${{ matrix.target }} deps
+        run:  |
+              curl -OL 'http://ftp.swin.edu.au/freebsd/releases/amd64/${{ matrix.target }}-RELEASE/base.txz'
+              curl -OL 'http://ftp.swin.edu.au/gnu/binutils/binutils-2.32.tar.xz'
+              curl -OL 'http://ftp.swin.edu.au/gnu/gmp/gmp-6.1.2.tar.xz'
+              curl -OL 'http://ftp.swin.edu.au/gnu/mpfr/mpfr-4.0.2.tar.xz'
+              curl -OL 'http://ftp.swin.edu.au/gnu/mpc/mpc-1.1.0.tar.gz'
+              curl -OL 'http://ftp.swin.edu.au/gnu/gcc/gcc-6.4.0/gcc-6.4.0.tar.xz'
+      - name: Prepare Cross ${{ matrix.target }}
+        run: |
+             mkdir -p /src/base
+             tar -C /src/base -Jxf base.txz
+             mv /src/base/usr/include /${{ matrix.target }}
+             mv /src/base/usr/lib /${{ matrix.target }}
+             mv /src/base/lib/* /${{ matrix.target }}
+             sed -i'' -e 's!/usr/lib/!/${{ matrix.target }}/lib/!g' -e 's!/lib/libc.so.7!/${{ matrix.target }}/lib/libc.so.7!g' /${{ matrix.target }}/lib/libc.so && \
+             sed -i'' 's!/usr/lib/!/${{ matrix.target }}/lib/!g' //${{ matrix.target }}/lib/libc++.so
+             fix-links /src
+             /src/fix-links /${{ matrix.target }}/lib
+             tar -C /src -Jxf binutils-2.32.tar.xz
+             tar -C /src -Jxf gcc-6.4.0.tar.xz
+             tar -C /src -Jxf gmp-6.1.2.tar.xz
+             tar -C /src -zxf mpc-1.1.0.tar.gz
+             tar -C /src -Jxf mpfr-4.0.2.tar.xz
+      - name: Build Cross Toolchain ${{ matrix.target }}
+        run: |
+             cd /src/binutils-2.32
+             ./configure --enable-libssp --enable-ld --target=x86_64-pc-freebsd13 --prefix=/${{ matrix.target }}
+             make
+             make install
+             cd /src/gmp-6.1.2
+             ./configure --prefix=/${{ matrix.target }} --enable-shared --enable-static --enable-mpbsd --enable-fft --enable-cxx --host=x86_64-pc-freebsd13
+             make
+             make install
+             cd /src/mpfr-4.0.2
+             ./configure --prefix=/${{ matrix.target }} --with-gnu-ld  --enable-static --enable-shared --with-gmp=/${{ matrix.target }} --host=x86_64-pc-freebsd13
+             make
+             make install
+             cd /src/mpc-1.1.0/
+             ./configure --prefix=/${{ matrix.target }} --with-gnu-ld --enable-static --enable-shared --with-gmp=/${{ matrix.target }} --with-mpfr=/freebsd --host=x86_64-pc-freebsd13
+             make
+             make install
+             mkdir -p /src/gcc-6.4.0/build
+             cd /src/gcc-6.4.0/build
+             ../configure --without-headers --with-gnu-as --with-gnu-ld --disable-nls --enable-languages=c,c++ --enable-libssp --enable-ld --disable-libitm --disable-libquadmath --target=x86_64-pc-freebsd13 --prefix=/${{ matrix.target }} --with-gmp=//${{ matrix.target }} --with-mpc=//${{ matrix.target }} --with-mpfr=/${{ matrix.target }} --disable-libgomp
+             LD_LIBRARY_PATH=/${{ matrix.target }}/lib make -j7
+             make install
+
       - name: Upload ${{ matrix.target }}-cross artifacts
         uses: actions/upload-artifact@v3
         with:
